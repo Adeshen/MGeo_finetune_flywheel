@@ -1,4 +1,4 @@
-# MGeo Training
+# MGeo 微调的背景 
 
 背景：在大模型能完全胜任自然语言任务(序列标注任务、分类任务、句子关系判断、生成式任务等)的情况，传统预训练Bert模型已经在学界边缘化。
 
@@ -45,6 +45,8 @@ Case案例-MGeo模型: LLM标注数据 + Bert迭代训练
 
 
 ## MGeo-数据飞轮
+![数据飞轮流程](/doc/pipeline.png "数据飞轮流程")
+
 1. 线上模型的自动化推理。
 2. 利用智能体与地理知识库对结果，再次进行自动化标注。
 3. 将智能体标注与线上推理结果差异化部分，形成反馈训练集。
@@ -79,6 +81,8 @@ Case案例-MGeo模型: LLM标注数据 + Bert迭代训练
 {"address": "洞桥镇上凌工业区宁波市鄞州中旗工艺品有限公司", "entities": {"town": "洞桥镇", "devzone": "上凌工业区", "poi": "宁波市鄞州中旗工艺品有限公司"}}
 {"address": "四川省成都市龙泉驿区龙都北路000号天悦国际", "entities": {"prov": "四川省", "city": "成都市", "district": "龙泉驿区", "road": "龙都北路", "roadno": "000号", "poi": "天悦国际"}}
 ```
+
+
 
 # MGEO 训练配置文件说明
 
@@ -172,4 +176,123 @@ sequence_length = 256
 [output]
 output_dir = continued_model
 model_name = continued_mgeo
+```
+
+# 推理服务
+
+启动推理服务器:
+```bash
+python inference_service/mgeo_service.py --model_path  $MGEO_MODEL_PATH --port 7869 
+```
+
+访问推理服务:
+```bash
+python inference_service/local_mgeo_client_request.py
+```
+
+响应结果:
+```json
+{
+  "success": true,
+  "message": "地址标准化成功",
+  "data": {
+    "address": "番禺区沙湾镇市良路荷景一区三街2座全覆盖",
+    "city": "广州",
+    "user_id": "zhongyd7",
+    "entities": {
+      "district": "番禺区",
+      "town": "沙湾镇",
+      "road": "市良路",
+      "houseno": "2座",
+      "floorno": "全覆盖"
+    },
+    "levels": {
+      "level1": "广东省",
+      "level2": "",
+      "level3": "番禺区",
+      "level4": "沙湾镇",
+      "level5": "市良路",
+      "level6": "",
+      "level7": "",
+      "level8": "2座",
+      "level9": "",
+      "level10": "全覆盖",
+      "level11": "",
+      "remark": "荷景一区三街"
+    }
+  },
+  "token_result": {
+    "tokens": [
+      "番",
+      "禺",
+      "区",
+      "沙",
+      "湾",
+      "镇",
+      "市",
+      "良",
+      "路",
+      "荷",
+      "景",
+      "一",
+      "区",
+      "三",
+      "街",
+      "2",
+      "座",
+      "全",
+      "覆",
+      "盖"
+    ],
+    "ner_tags": [
+      "B-district",
+      "I-district",
+      "I-district",
+      "B-town",
+      "I-town",
+      "I-town",
+      "B-road",
+      "I-road",
+      "I-road",
+      "O",
+      "O",
+      "O",
+      "O",
+      "O",
+      "O",
+      "B-houseno",
+      "I-houseno",
+      "B-floorno",
+      "I-floorno",
+      "I-floorno"
+    ],
+    "text": "番禺区沙湾镇市良路荷景一区三街2座全覆盖"
+  },
+  "entity_result": {
+    "original_text": "番禺区沙湾镇市良路荷景一区三街2座全覆盖",
+    "entities": {
+      "district": "番禺区",
+      "town": "沙湾镇",
+      "road": "市良路",
+      "houseno": "2座",
+      "floorno": "全覆盖"
+    }
+  },
+  "level11_result": {
+    "original_text": "番禺区沙湾镇市良路荷景一区三街2座全覆盖",
+    "level1": "广东省",
+    "level2": "",
+    "level3": "番禺区",
+    "level4": "沙湾镇",
+    "level5": "市良路",
+    "level6": "",
+    "level7": "",
+    "level8": "2座",
+    "level9": "",
+    "level10": "全覆盖",
+    "level11": "",
+    "remark": "荷景一区三街"
+  },
+  "processing_time": 1.353348
+}
 ```
