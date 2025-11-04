@@ -84,35 +84,49 @@ config = {
 
 @app.on_event("startup")
 async def startup_event():
-    """服务启动时初始化模型"""
-    global inferencer, formatter, config
-    
+    global inferencer, formatter
     try:
-        logger.info("正在初始化MGeo推理服务...")
+        logger.info("=== 开始初始化MGeo推理服务 ===")
+
+        # 关键：在服务进程中自己解析命令行参数（彻底避免进程传递问题）
+        import sys
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--model_path", "-m", type=str, required=True)
+        # 只解析我们需要的参数（忽略其他uvicorn参数）
+        args, _ = parser.parse_known_args(sys.argv[1:])
+
+        model_path = args.model_path
+        logger.info(f"服务进程直接解析到模型路径: {model_path}")
+
+        # 路径处理和校验（和之前一致）
+        normalized_path = os.path.normpath(model_path)
+        absolute_model_path = os.path.abspath(normalized_path)
+        current_dir = os.getcwd()
+
+        logger.info(f"当前工作目录: {current_dir}")
+        logger.info(f"规范化后的路径: {normalized_path}")
+        logger.info(f"最终实际查找路径（绝对路径）: {absolute_model_path}")
+
+        if not os.path.exists(absolute_model_path):
+            raise Exception(f"路径不存在！实际查找：{absolute_model_path}")
+        if not os.path.isdir(absolute_model_path):
+            raise Exception(f"不是文件夹！路径：{absolute_model_path}")
+        if not os.access(absolute_model_path, os.R_OK):
+            raise Exception(f"无读取权限！路径：{absolute_model_path}")
         
-        # 使用配置中的模型路径
-        model_path = config["model_path"]
-        logger.info(f"使用模型路径: {model_path}")
-        
-        if not os.path.exists(model_path):
-            logger.error(f"模型路径不存在: {model_path}")
-            raise Exception(f"模型路径不存在: {model_path}")
-        
-        # 初始化推理器
-        logger.info("正在加载MGeo模型...")
-        inferencer = MGeoInference(model_path)
+        # 加载模型
+        logger.info(f"开始加载MGeo模型...")
+        inferencer = MGeoInference(absolute_model_path)
         logger.info("MGeo模型加载完成")
-        
-        # 初始化格式化器
         formatter = AddressFormatter()
         logger.info("地址格式化器初始化完成")
-        
-        logger.info("MGeo推理服务启动成功!")
+        logger.info("=== MGeo推理服务初始化成功 ===")
         
     except Exception as e:
-        logger.error(f"服务启动失败: {e}")
+        logger.error(f"=== 服务启动失败：{str(e)} ===")
         logger.error(traceback.format_exc())
         raise
+
 
 @app.get("/")
 async def root():
@@ -158,6 +172,9 @@ async def standardize_address(request: AddressRequest):
         标准化后的地址信息，包含token级别、实体级别和11级分类结果
     """
     global inferencer, formatter
+    
+    assert inferencer != None, f"推理器{inferencer}未初始化"
+    assert formatter != None, "格式化器未初始化"
     
     start_time = datetime.now()
     
@@ -363,7 +380,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="MGeo地址标准化服务")
     
     parser.add_argument(
-        "--model-path", "-m",
+        "--model_path", "-m",
         type=str,
         default="./mgeo_trained_251024",
         help="模型文件路径 (默认: ./mgeo_trained_251024)"
@@ -409,7 +426,8 @@ if __name__ == "__main__":
         "host": args.host,
         "port": args.port
     })
-    
+    # os.environ["MGeo_MODEL_PATH"] = args.model_path
+    # app.state.model_path = args.model_path
     # 设置日志级别
     log_level = getattr(logging, args.log_level.upper())
     logging.getLogger().setLevel(log_level)
